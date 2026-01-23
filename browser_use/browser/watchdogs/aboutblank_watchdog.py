@@ -125,121 +125,39 @@ class AboutBlankWatchdog(BaseWatchdog):
 
 	async def _show_dvd_screensaver_loading_animation_cdp(self, target_id: TargetID, browser_session_label: str) -> None:
 		"""
-		Injects a DVD screensaver-style bouncing logo loading animation overlay into the target using CDP.
-		This is used to visually indicate that the browser is setting up or waiting.
+		Clears any about:blank loading overlay for a minimal page.
 		"""
 		try:
 			# Create temporary session for this target without switching focus
 			temp_session = await self.browser_session.get_or_create_cdp_session(target_id, focus=False)
 
-			# Inject the DVD screensaver script (from main branch with idempotency added)
-			script = f"""
-				(function(browser_session_label) {{
-					// Idempotency check
-					if (window.__dvdAnimationRunning) {{
-						return; // Already running, don't add another
-					}}
-					window.__dvdAnimationRunning = true;
-					
-					// Ensure document.body exists before proceeding
-					if (!document.body) {{
-						// Try again after DOM is ready
-						window.__dvdAnimationRunning = false; // Reset flag to retry
-						if (document.readyState === 'loading') {{
-							document.addEventListener('DOMContentLoaded', () => arguments.callee(browser_session_label));
-						}}
-						return;
-					}}
-					
-					const animated_title = `Starting agent ${{browser_session_label}}...`;
-					if (document.title === animated_title) {{
-						return;      // already run on this tab, dont run again
-					}}
-					document.title = animated_title;
+			# Inject a cleanup script to keep about:blank minimal
+			script = """
+				(function clearAboutBlankOverlay() {
+					try {
+						if (!document.body) {
+							if (document.readyState === 'loading') {
+								document.addEventListener('DOMContentLoaded', clearAboutBlankOverlay);
+							}
+							return;
+						}
 
-					// Create the main overlay
-					const loadingOverlay = document.createElement('div');
-					loadingOverlay.id = 'pretty-loading-animation';
-					loadingOverlay.style.position = 'fixed';
-					loadingOverlay.style.top = '0';
-					loadingOverlay.style.left = '0';
-					loadingOverlay.style.width = '100vw';
-					loadingOverlay.style.height = '100vh';
-					loadingOverlay.style.background = '#000';
-					loadingOverlay.style.zIndex = '99999';
-					loadingOverlay.style.overflow = 'hidden';
+						const overlay = document.getElementById('pretty-loading-animation');
+						if (overlay) {
+							overlay.remove();
+						}
 
-					// Create the image element
-					const img = document.createElement('img');
-					img.src = 'https://cf.browser-use.com/logo.svg';
-					img.alt = 'Browser-Use';
-					img.style.width = '200px';
-					img.style.height = 'auto';
-					img.style.position = 'absolute';
-					img.style.left = '0px';
-					img.style.top = '0px';
-					img.style.zIndex = '2';
-					img.style.opacity = '0.8';
+						if (document.title && document.title.indexOf('Starting agent') === 0) {
+							document.title = '';
+						}
 
-					loadingOverlay.appendChild(img);
-					document.body.appendChild(loadingOverlay);
-
-					// DVD screensaver bounce logic
-					let x = Math.random() * (window.innerWidth - 300);
-					let y = Math.random() * (window.innerHeight - 300);
-					let dx = 1.2 + Math.random() * 0.4; // px per frame
-					let dy = 1.2 + Math.random() * 0.4;
-					// Randomize direction
-					if (Math.random() > 0.5) dx = -dx;
-					if (Math.random() > 0.5) dy = -dy;
-
-					function animate() {{
-						const imgWidth = img.offsetWidth || 300;
-						const imgHeight = img.offsetHeight || 300;
-						x += dx;
-						y += dy;
-
-						if (x <= 0) {{
-							x = 0;
-							dx = Math.abs(dx);
-						}} else if (x + imgWidth >= window.innerWidth) {{
-							x = window.innerWidth - imgWidth;
-							dx = -Math.abs(dx);
-						}}
-						if (y <= 0) {{
-							y = 0;
-							dy = Math.abs(dy);
-						}} else if (y + imgHeight >= window.innerHeight) {{
-							y = window.innerHeight - imgHeight;
-							dy = -Math.abs(dy);
-						}}
-
-						img.style.left = `${{x}}px`;
-						img.style.top = `${{y}}px`;
-
-						requestAnimationFrame(animate);
-					}}
-					animate();
-
-					// Responsive: update bounds on resize
-					window.addEventListener('resize', () => {{
-						x = Math.min(x, window.innerWidth - img.offsetWidth);
-						y = Math.min(y, window.innerHeight - img.offsetHeight);
-					}});
-
-					// Add a little CSS for smoothness
-					const style = document.createElement('style');
-					style.textContent = `
-						#pretty-loading-animation {{
-							/*backdrop-filter: blur(2px) brightness(0.9);*/
-						}}
-						#pretty-loading-animation img {{
-							user-select: none;
-							pointer-events: none;
-						}}
-					`;
-					document.head.appendChild(style);
-				}})('{browser_session_label}');
+						if (window.__dvdAnimationRunning) {
+							window.__dvdAnimationRunning = false;
+						}
+					} catch (e) {
+						// Keep about:blank clean even if cleanup fails.
+					}
+				})();
 			"""
 
 			await temp_session.cdp_client.send.Runtime.evaluate(params={'expression': script}, session_id=temp_session.session_id)
