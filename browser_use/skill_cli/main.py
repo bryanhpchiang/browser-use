@@ -264,6 +264,11 @@ Examples:
 	p = subparsers.add_parser('extract', help='Extract data using LLM')
 	p.add_argument('query', help='What to extract')
 
+	# upload <index> <path>
+	p = subparsers.add_parser('upload', help='Upload file to file input element')
+	p.add_argument('index', type=int, help='Element index of file input')
+	p.add_argument('path', help='Path to file to upload')
+
 	# -------------------------------------------------------------------------
 	# Python Execution
 	# -------------------------------------------------------------------------

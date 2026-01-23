@@ -76,6 +76,7 @@ browser-use --browser remote open https://example.com
 | `browser-use keys "Enter"` | Send keyboard keys |
 | `browser-use keys "Control+a"` | Send key combination |
 | `browser-use select <index> "value"` | Select dropdown option |
+| `browser-use upload <index> <path>` | Upload file to file input |
 
 ### Tabs
 | Command | Description |

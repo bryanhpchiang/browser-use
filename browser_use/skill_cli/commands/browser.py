@@ -24,6 +24,7 @@ COMMANDS = {
 	'select',
 	'eval',
 	'extract',
+	'upload',
 }
 
 
@@ -189,5 +190,26 @@ async def handle(action: str, session: SessionInfo, params: dict[str, Any]) -> A
 		# This requires LLM integration
 		# For now, return a placeholder
 		return {'query': query, 'error': 'extract requires agent mode - use: browser-use run "extract ..."'}
+
+	elif action == 'upload':
+		from pathlib import Path
+
+		from browser_use.browser.events import UploadFileEvent
+
+		index = params['index']
+		file_path = params['path']
+
+		# Validate file exists
+		path = Path(file_path).expanduser().resolve()
+		if not path.exists():
+			return {'error': f'File not found: {file_path}'}
+
+		# Look up node from selector map
+		node = await bs.get_element_by_index(index)
+		if node is None:
+			return {'error': f'Element index {index} not found - page may have changed'}
+
+		await bs.event_bus.dispatch(UploadFileEvent(node=node, file_path=str(path)))
+		return {'uploaded': str(path), 'element': index}
 
 	raise ValueError(f'Unknown browser action: {action}')
